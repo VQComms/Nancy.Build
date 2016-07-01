@@ -43,7 +43,7 @@ Task("Get-Projects")
   SUB_PROJECTS.ForEach(project => {
            LogInfo("Getting "+ project +" from github");
            StartProcess("git", new ProcessSettings {
-         Arguments = string.Format("clone --recursive {0} {1}/{2}", GetProjectGitUrl(project), WORKING_DIRECTORY,project)
+         Arguments = string.Format("clone --recursive {0} {1}/{2}", GetProjectGitUrl(project, BASE_GITHUB_PATH), WORKING_DIRECTORY,project)
          });
   });
 });
@@ -56,7 +56,7 @@ Task("Build-Projects")
  
   SUB_PROJECTS.ForEach(project => {
       LogInfo("Building "+ project);
-      CakeExecuteScript(GetProjectDirectory(project) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", target}}});   
+      CakeExecuteScript(GetProjectDirectory(project, WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", target}}});   
   });
 });
 
@@ -98,15 +98,15 @@ Task("Default")
 	
 RunTarget(target);
 
-public string GetProjectGitUrl(string project)
+public string GetProjectGitUrl(string project, string url)
 {
-  return string.Format("{0}/{1}",BASE_GITHUB_PATH ,project);
+  return string.Format("{0}/{1}",url ,project);
 }
 
-public string GetProjectDirectory(string project)
+public string GetProjectDirectory(string project, string dir)
 {
  
-  return string.Format("./{0}/{1}",WORKING_DIRECTORY ,project);
+  return string.Format("./{0}/{1}",dir ,project);
 }
 
 public void UpdateProjectJsonVersion(string version, FilePathCollection filePaths)
