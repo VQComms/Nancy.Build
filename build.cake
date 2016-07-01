@@ -1,4 +1,4 @@
-#addin nuget:?package=Newtonsoft.Json&version=8.03
+#addin "nuget:?package=Newtonsoft.Json&version=8.0.3"
 
 // Arguments
 var target = Argument<string>("target", "Default");
@@ -64,7 +64,7 @@ Task("Clean")
 .Description("Cleans up (deletes!) the working directory")
 .Does(() =>
 {
-  CleanDirectories("./"+WORKING_DIRECTORY);
+  CleanDirectory("./"+WORKING_DIRECTORY);
 });
 
 Task("Prepare-Release")
