@@ -26,8 +26,6 @@ Tells Cake to use the latest Roslyn release.
 .PARAMETER WhatIf
 Performs a dry run of the build script.
 No tasks will be executed.
-.PARAMETER Mono
-Tells Cake to use the Mono scripting engine.
 .PARAMETER SkipToolPackageRestore
 Skips restoring of packages.
 .PARAMETER ScriptArgs
@@ -48,7 +46,6 @@ Param(
     [switch]$Experimental,
     [Alias("DryRun","Noop")]
     [switch]$WhatIf,
-    [switch]$Mono,
     [switch]$SkipToolPackageRestore,
     [Parameter(Position=0,Mandatory=$false,ValueFromRemainingArguments=$true)]
     [string[]]$ScriptArgs
@@ -60,19 +57,12 @@ $PSScriptRoot = split-path -parent $MyInvocation.MyCommand.Definition;
 $TOOLS_DIR = Join-Path $PSScriptRoot "tools"
 $NUGET_EXE = Join-Path $TOOLS_DIR "nuget.exe"
 $NUGET_URL = "http://dist.nuget.org/win-x86-commandline/latest/nuget.exe"
-$CAKE_EXE = Join-Path $TOOLS_DIR "Cake/Cake.exe"
-$PACKAGES_CONFIG = Join-Path $TOOLS_DIR "packages.config"
-
-# Should we use mono?
-$UseMono = "";
-if($Mono.IsPresent) {
-    Write-Verbose -Message "Using the Mono based scripting engine."
-    $UseMono = "-mono"
-}
+$CAKE_VERSION = "0.13.0"
+$CAKE_EXE = Join-Path $TOOLS_DIR "Cake.$($CAKE_VERSION)/Cake.exe"
 
 # Should we use the new Roslyn?
 $UseExperimental = "";
-if($Experimental.IsPresent -and !($Mono.IsPresent)) {
+if($Experimental.IsPresent) {
     Write-Verbose -Message "Using experimental version of Roslyn."
     $UseExperimental = "-experimental"
 }
@@ -87,14 +77,6 @@ if($WhatIf.IsPresent) {
 if ((Test-Path $PSScriptRoot) -and !(Test-Path $TOOLS_DIR)) {
     Write-Verbose -Message "Creating tools directory..."
     New-Item -Path $TOOLS_DIR -Type directory | out-null
-}
-
-# Make sure that packages.config exist.
-if (!(Test-Path $PACKAGES_CONFIG)) {
-    Write-Verbose -Message "Downloading packages.config..."
-    try { Invoke-WebRequest -Uri http://cakebuild.net/download/bootstrapper/packages -OutFile $PACKAGES_CONFIG } catch {
-        Throw "Could not download packages.config."
-    }
 }
 
 # Try find NuGet.exe in path if not exists
@@ -118,10 +100,10 @@ if (!(Test-Path $NUGET_EXE)) {
     }
 }
 
-# Save nuget.exe path to environment to be available to child processed
+# Save nuget.exe path to environment to be available to child processes
 $ENV:NUGET_EXE = $NUGET_EXE
 
-# Restore tools from NuGet?
+# Restore tools from NuGet
 if(-Not $SkipToolPackageRestore.IsPresent) {
     Push-Location
     Set-Location $TOOLS_DIR
@@ -134,19 +116,16 @@ if(-Not $SkipToolPackageRestore.IsPresent) {
     Pop-Location
 }
 
-# Make sure that Cake has been installed.
+# Make sure Cake has been installed.
 if (!(Test-Path $CAKE_EXE)) {
-    Write-Verbose -Message "Trying to find Cake.exe in PATH..."
-    $existingPaths = $Env:Path -Split ';' | Where-Object { (![string]::IsNullOrEmpty($_)) -and (Test-Path $_) }
-    $CAKE_EXE_IN_PATH = Get-ChildItem -Path $existingPaths -Filter "cake.exe" | Select -First 1
-    if ($CAKE_EXE_IN_PATH -ne $null -and (Test-Path $CAKE_EXE_IN_PATH.FullName)) {
-        Write-Verbose -Message "Found in PATH at $($CAKE_EXE_IN_PATH.FullName)."
-        $CAKE_EXE = $CAKE_EXE_IN_PATH.FullName
+    Write-Verbose "Installing Cake..."
+    Invoke-Expression "&`"$NUGET_EXE`" install Cake -Version $CAKE_VERSION -OutputDirectory `"$TOOLS_DIR`"" | Out-Null;
+    if ($LASTEXITCODE -ne 0) {
+        Throw "An error occured while restoring Cake from NuGet."
     }
-    #Throw "Could not find Cake.exe at $CAKE_EXE"
 }
 
 # Start Cake
 Write-Host "Running build script..."
-Invoke-Expression "& `"$CAKE_EXE`" `"$Script`" -target=`"$Target`" -configuration=`"$Configuration`" -verbosity=`"$Verbosity`" $UseMono $UseDryRun $UseExperimental $ScriptArgs"
+Invoke-Expression "& `"$CAKE_EXE`" `"$Script`" -target=`"$Target`" -configuration=`"$Configuration`" -verbosity=`"$Verbosity`" $UseDryRun $UseExperimental $ScriptArgs"
 exit $LASTEXITCODE
