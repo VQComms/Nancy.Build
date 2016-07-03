@@ -26,11 +26,21 @@ Task("Run-Ninject-Build")
    CakeExecuteScript("./Working/Bootstrappers/Ninject/build.cake");
 });
 
-Task("fix-submodules")
-.Description("Updates all sub project submodules to point at master")
+Task("Update-Projects")
+.Description("Updates all sub project submodules")
 .Does(() =>
 {
   
+  SUB_PROJECTS.Skip(1).ForEach(project => {
+    LogInfo(string.Format("Updating: {0} to v#{1}",project,version);
+    var dir = GetProjectDirectory(project,WORKING_DIRECTORY);
+    PrepSubModules(dir)
+    ExecuteGit(dir+"/dependencies/Nancy","checkout 'master'");
+    ExecuteGit(dir+"/dependencies/Nancy","pull");
+    ExecuteGit(dir+"/dependencies/Nancy",string.Format("checkout v{0}",version);
+    ExecuteGit(dir,string.Format("commit -am \"Updated submodule to tag: v{0}\"",version);
+    ExecuteGit(dir,string.Format("tag v{0}",version);
+  });
 });
 
 Task("Get-Projects")
@@ -91,10 +101,20 @@ Task("Prepare-Release")
    });
  });
 
+Task("Prepare-Release-Nancy")
+.Description("Prepares the main Nancy repo for a release")
+.Does(() => 
+{
+    CakeExecuteScript(GetProjectDirectory("Nancy", WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", "Prepare-Release"},{"targetversion",target}}});   
+});
 
 Task("Default")
     .IsDependentOn("Build-Projects");
-    
+ 
+ Task("Testing")
+ .Does(() => {
+   
+ });   
 	
 RunTarget(target);
 
@@ -126,4 +146,18 @@ public void UpdateProjectJsonVersion(string version, FilePathCollection filePath
 public void LogInfo(string message)
 {
   Information(logAction=>logAction(message));
+}
+public void ExecuteGit(string workingDir, string command)
+{
+  LogInfo("Changing directory to "+ dir);
+  StartProcess("git",new ProcessSettings {
+     Arguments = string.Format("{0}", command),
+     WorkingDirectory = workingDir
+   });
+}
+
+public void PrepSubModules(string workingDir)
+{
+  ExecuteGit(workingDir,"submodule init")
+  ExecuteGit(workingDir,"submodule update")
 }
