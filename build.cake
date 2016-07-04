@@ -4,6 +4,7 @@
 var target = Argument<string>("target", "Default");
 var version = Argument<string>("targetversion", null);
 var nugetapikey = Argument<string>("apikey", "");
+var debug = Argument<bool>("debug", false);
 var BASE_GITHUB_PATH = "https://github.com/NancyFx";
 var WORKING_DIRECTORY = "Working";
 var projectJsonFiles = GetFiles("./Working/**/project.json");
@@ -20,17 +21,46 @@ var SUB_PROJECTS = new List<string>{
       "Nancy.Serialization.JsonNet"
   };
 
-Task("Run-Ninject-Build")
+Task("Package-Nuget")
   .Does(() =>
 {
-   CakeExecuteScript("./Working/Bootstrappers/Ninject/build.cake");
+  if(string.IsNullOrWhiteSpace(nugetapikey)){
+    throw new CakeException("No NuGet API key provided.");
+   }
+  
+  SUB_PROJECTS.ForEach(project => {
+      LogInfo("Packaging Nuget for : "+ project);
+      CakeExecuteScript(GetProjectDirectory(project, WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", "Package-NuGet"}}});   
+  });
+   
 });
 
-Task("fix-submodules")
-.Description("Updates all sub project submodules to point at master")
+Task("Publish-Nuget")
+  .Does(() =>
+{
+  
+  SUB_PROJECTS.ForEach(project => {
+      LogInfo("Packaging Nuget for : "+ project);
+      CakeExecuteScript(GetProjectDirectory(project, WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", "Publish-NuGet"},{"apikey",nugetapikey}}});   
+  });
+   
+});
+
+Task("Update-Projects")
+.Description("Updates all sub project submodules")
 .Does(() =>
 {
   
+  SUB_PROJECTS.Skip(1).ToList().ForEach(project => {
+    LogInfo(string.Format("Updating: {0} to v#{1}",project,version));
+    var dir = GetProjectDirectory(project,WORKING_DIRECTORY);
+    PrepSubModules(dir);
+    ExecuteGit(dir+"/dependencies/Nancy","checkout 'master'");
+    ExecuteGit(dir+"/dependencies/Nancy","pull");
+    ExecuteGit(dir+"/dependencies/Nancy",string.Format("checkout v{0}",version));
+    ExecuteGit(dir,string.Format("commit -am \"Updated submodule to tag: v{0}\"",version);
+    ExecuteGit(dir,string.Format("tag v{0}",version);
+  });
 });
 
 Task("Get-Projects")
@@ -60,6 +90,19 @@ Task("Build-Projects")
   });
 });
 
+
+Task("Test-Projects")
+.IsDependentOn("Build-Projects")
+.Description("Tests all projects")
+.Does(() =>
+{
+ 
+  SUB_PROJECTS.ForEach(project => {
+      LogInfo("Running test for : "+ project);
+      CakeExecuteScript(GetProjectDirectory(project, WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", "Test"}}});   
+  });
+});
+
 Task("Clean")
 .Description("Cleans up (deletes!) the working directory")
 .Does(() =>
@@ -73,6 +116,7 @@ Task("Prepare-Release")
    // Update version.
    UpdateProjectJsonVersion(version, projectJsonFiles);
  
+ if (!debug){
    // Add
    foreach (var file in projectJsonFiles) 
    {
@@ -89,12 +133,29 @@ Task("Prepare-Release")
    StartProcess("git", new ProcessSettings {
      Arguments = string.Format("tag \"v{0}\"", version)
    });
+ }
  });
 
+Task("Prepare-Release-Nancy")
+.Description("Prepares the main Nancy repo for a release")
+.Does(() => 
+{
+    CakeExecuteScript(GetProjectDirectory("Nancy", WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", "Prepare-Release"},{"targetversion",target}}});   
+});
 
 Task("Default")
     .IsDependentOn("Build-Projects");
+ 
+ Task("Push-SubProjects")
+ .Does(() => {
+    SUB_PROJECTS.Skip(1).ToList().ForEach(project => {
+      
+      LogInfo(string.Format("Updating: {0}",project));
+      ExecuteGit(GetProjectDirectory(project, WORKING_DIRECTORY),"push origin master");
+      ExecuteGit(GetProjectDirectory(project, WORKING_DIRECTORY),"push --tags");
+    });
     
+ });   
 	
 RunTarget(target);
 
@@ -126,4 +187,25 @@ public void UpdateProjectJsonVersion(string version, FilePathCollection filePath
 public void LogInfo(string message)
 {
   Information(logAction=>logAction(message));
+}
+public void ExecuteGit(string workingDir, string command)
+{
+  LogInfo("Changing directory to "+ workingDir);
+  if (debug)
+  {
+    Console.WriteLine("Executing git " + command + " in " + workingDir);
+  }
+  else 
+  {
+    StartProcess("git",new ProcessSettings {
+       Arguments = string.Format("{0}", command),
+       WorkingDirectory = workingDir
+     });
+  }
+}
+
+public void PrepSubModules(string workingDir)
+{
+  ExecuteGit(workingDir,"submodule init");
+  ExecuteGit(workingDir,"submodule update");
 }
