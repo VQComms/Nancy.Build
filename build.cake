@@ -20,10 +20,29 @@ var SUB_PROJECTS = new List<string>{
       "Nancy.Serialization.JsonNet"
   };
 
-Task("Run-Ninject-Build")
+Task("Package-Nuget")
   .Does(() =>
 {
-   CakeExecuteScript("./Working/Bootstrappers/Ninject/build.cake");
+  if(string.IsNullOrWhiteSpace(nugetapikey)){
+    throw new CakeException("No NuGet API key provided.");
+   }
+  
+  SUB_PROJECTS.ForEach(project => {
+      LogInfo("Packaging Nuget for : "+ project);
+      CakeExecuteScript(GetProjectDirectory(project, WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", "Package-NuGet"}}});   
+  });
+   
+});
+
+Task("Publish-Nuget")
+  .Does(() =>
+{
+  
+  SUB_PROJECTS.ForEach(project => {
+      LogInfo("Packaging Nuget for : "+ project);
+      CakeExecuteScript(GetProjectDirectory(project, WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", "Publish-NuGet"},{"apikey",nugetapikey}}});   
+  });
+   
 });
 
 Task("Update-Projects")
@@ -111,9 +130,15 @@ Task("Prepare-Release-Nancy")
 Task("Default")
     .IsDependentOn("Build-Projects");
  
- Task("Testing")
+ Task("Push-SubProjects")
  .Does(() => {
-   
+    SUB_PROJECTS.Skip(1).ForEach(project => {
+      
+      LogInfo(string.Format("Updating: {0}",project));
+      ExecuteGit(GetProjectDirectory(project, WORKING_DIRECTORY),"push origin master");
+      ExecuteGit(GetProjectDirectory(project, WORKING_DIRECTORY),"push --tags");
+    });
+    
  });   
 	
 RunTarget(target);
