@@ -4,6 +4,7 @@
 var target = Argument<string>("target", "Default");
 var version = Argument<string>("targetversion", null);
 var nugetapikey = Argument<string>("apikey", "");
+var debug = Argument<bool>("debug", false);
 var BASE_GITHUB_PATH = "https://github.com/NancyFx";
 var WORKING_DIRECTORY = "Working";
 var projectJsonFiles = GetFiles("./Working/**/project.json");
@@ -187,11 +188,18 @@ public void LogInfo(string message)
 }
 public void ExecuteGit(string workingDir, string command)
 {
-  LogInfo("Changing directory to "+ dir);
-  StartProcess("git",new ProcessSettings {
-     Arguments = string.Format("{0}", command),
-     WorkingDirectory = workingDir
-   });
+  LogInfo("Changing directory to "+ workingDir);
+  if (debug)
+  {
+    Console.WriteLine("Executing git " + command + " in " + workingDir);
+  }
+  else 
+  {
+    StartProcess("git",new ProcessSettings {
+       Arguments = string.Format("{0}", command),
+       WorkingDirectory = workingDir
+     });
+  }
 }
 
 public void PrepSubModules(string workingDir)
