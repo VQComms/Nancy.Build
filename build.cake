@@ -50,13 +50,13 @@ Task("Update-Projects")
 .Does(() =>
 {
   
-  SUB_PROJECTS.Skip(1).ForEach(project => {
-    LogInfo(string.Format("Updating: {0} to v#{1}",project,version);
+  SUB_PROJECTS.Skip(1).ToList().ForEach(project => {
+    LogInfo(string.Format("Updating: {0} to v#{1}",project,version));
     var dir = GetProjectDirectory(project,WORKING_DIRECTORY);
-    PrepSubModules(dir)
+    PrepSubModules(dir);
     ExecuteGit(dir+"/dependencies/Nancy","checkout 'master'");
     ExecuteGit(dir+"/dependencies/Nancy","pull");
-    ExecuteGit(dir+"/dependencies/Nancy",string.Format("checkout v{0}",version);
+    ExecuteGit(dir+"/dependencies/Nancy",string.Format("checkout v{0}",version));
     ExecuteGit(dir,string.Format("commit -am \"Updated submodule to tag: v{0}\"",version);
     ExecuteGit(dir,string.Format("tag v{0}",version);
   });
@@ -86,6 +86,19 @@ Task("Build-Projects")
   SUB_PROJECTS.ForEach(project => {
       LogInfo("Building "+ project);
       CakeExecuteScript(GetProjectDirectory(project, WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", target}}});   
+  });
+});
+
+
+Task("Test-Projects")
+.IsDependentOn("Build-Projects")
+.Description("Tests all projects")
+.Does(() =>
+{
+ 
+  SUB_PROJECTS.ForEach(project => {
+      LogInfo("Running test for : "+ project);
+      CakeExecuteScript(GetProjectDirectory(project, WORKING_DIRECTORY) + "/build.cake", new CakeSettings{ Arguments = new Dictionary<string, string>{{"target", "Test"}}});   
   });
 });
 
@@ -132,7 +145,7 @@ Task("Default")
  
  Task("Push-SubProjects")
  .Does(() => {
-    SUB_PROJECTS.Skip(1).ForEach(project => {
+    SUB_PROJECTS.Skip(1).ToList().ForEach(project => {
       
       LogInfo(string.Format("Updating: {0}",project));
       ExecuteGit(GetProjectDirectory(project, WORKING_DIRECTORY),"push origin master");
@@ -183,6 +196,6 @@ public void ExecuteGit(string workingDir, string command)
 
 public void PrepSubModules(string workingDir)
 {
-  ExecuteGit(workingDir,"submodule init")
-  ExecuteGit(workingDir,"submodule update")
+  ExecuteGit(workingDir,"submodule init");
+  ExecuteGit(workingDir,"submodule update");
 }
